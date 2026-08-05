@@ -12,7 +12,7 @@ export default function SiteListPage() {
   const [clientFilter, setClientFilter] = useState('')
   const [managerFilter, setManagerFilter] = useState('')
   const [asbestosFilter, setAsbestosFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('工事中')
   const [importResult, setImportResult] = useState<{ sites: { inserted: number; updated: number }; workers: number } | null>(null)
 
   const { data: sites = [], isLoading } = useQuery<Site[]>({
@@ -125,9 +125,9 @@ export default function SiteListPage() {
             <option value="工事中">工事中</option>
             <option value="完工">完工</option>
           </select>
-          {(nameQuery || clientFilter || managerFilter || asbestosFilter || statusFilter) && (
+          {(nameQuery || clientFilter || managerFilter || asbestosFilter || statusFilter !== '工事中') && (
             <button
-              onClick={() => { setNameQuery(''); setClientFilter(''); setManagerFilter(''); setAsbestosFilter(''); setStatusFilter('') }}
+              onClick={() => { setNameQuery(''); setClientFilter(''); setManagerFilter(''); setAsbestosFilter(''); setStatusFilter('工事中') }}
               className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1.5 rounded hover:bg-gray-100 whitespace-nowrap"
             >
               クリア
