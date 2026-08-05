@@ -1,19 +1,40 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { SiteCard } from '@/components/site-card'
 import type { Site } from '@/types/db'
 
+const FILTERS_STORAGE_KEY = 'site-list-filters'
+
+function getStoredFilter(key: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  try {
+    const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY)
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw)
+    return typeof parsed[key] === 'string' ? parsed[key] : fallback
+  } catch {
+    return fallback
+  }
+}
+
 export default function SiteListPage() {
   const qc = useQueryClient()
-  const [nameQuery, setNameQuery] = useState('')
-  const [clientFilter, setClientFilter] = useState('')
-  const [managerFilter, setManagerFilter] = useState('')
-  const [asbestosFilter, setAsbestosFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('工事中')
+  const [nameQuery, setNameQuery] = useState(() => getStoredFilter('nameQuery', ''))
+  const [clientFilter, setClientFilter] = useState(() => getStoredFilter('clientFilter', ''))
+  const [managerFilter, setManagerFilter] = useState(() => getStoredFilter('managerFilter', ''))
+  const [asbestosFilter, setAsbestosFilter] = useState(() => getStoredFilter('asbestosFilter', ''))
+  const [statusFilter, setStatusFilter] = useState(() => getStoredFilter('statusFilter', '工事中'))
   const [importResult, setImportResult] = useState<{ sites: { inserted: number; updated: number }; workers: number } | null>(null)
+
+  useEffect(() => {
+    sessionStorage.setItem(
+      FILTERS_STORAGE_KEY,
+      JSON.stringify({ nameQuery, clientFilter, managerFilter, asbestosFilter, statusFilter })
+    )
+  }, [nameQuery, clientFilter, managerFilter, asbestosFilter, statusFilter])
 
   const { data: sites = [], isLoading } = useQuery<Site[]>({
     queryKey: ['sites'],
