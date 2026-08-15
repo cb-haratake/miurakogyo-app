@@ -68,6 +68,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex-1 p-2 space-y-0.5" onClick={() => setMobileOpen(false)}>
           <NavItem href="/" label="現場一覧" />
+          <NavItem href="/reports" label="出面一覧" />
           <NavItem href="/masters" label="マスタ管理" />
           <a
             href="https://office.craft-bank.com/orders?custom_view_id=8440&per_page=100&sort_asc_desc=desc&sort_key=latest_updated_at"
