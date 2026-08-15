@@ -16,3 +16,7 @@ export type ReportRow = DailyReport & {
   work_content: { id: string; label: string } | null
   health_type: { id: string; label: string } | null
 }
+
+export type ReportRowWithSite = ReportRow & {
+  site: { id: string; name: string; is_asbestos: boolean }
+}
