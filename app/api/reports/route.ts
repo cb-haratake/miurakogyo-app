@@ -6,14 +6,11 @@ export async function GET(req: NextRequest) {
   const user = await getAuthenticatedUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const month = req.nextUrl.searchParams.get('month') // 'YYYY-MM'
-  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-    return NextResponse.json({ error: 'month パラメータが必要です (YYYY-MM)' }, { status: 400 })
+  const from = req.nextUrl.searchParams.get('from') // 'YYYY-MM-DD'
+  const to = req.nextUrl.searchParams.get('to') // 'YYYY-MM-DD'
+  if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return NextResponse.json({ error: 'from / to パラメータが必要です (YYYY-MM-DD)' }, { status: 400 })
   }
-
-  const [y, m] = month.split('-')
-  const from = `${month}-01`
-  const to = new Date(Number(y), Number(m), 0).toISOString().slice(0, 10)
 
   const supabase = createServerClient()
   const { data, error } = await supabase
