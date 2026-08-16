@@ -10,6 +10,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const result = await syncMasters(null)
+  const result = await syncMasters(null, 'cron')
   return NextResponse.json(result, { status: result.errors.length ? 207 : 200 })
 }

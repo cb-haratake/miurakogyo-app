@@ -11,7 +11,10 @@ export type SyncMastersResult = {
 }
 
 // target=employee | partner | (omit = all)
-export async function syncMasters(target: string | null): Promise<SyncMastersResult> {
+export async function syncMasters(
+  target: string | null,
+  triggerSource: 'user' | 'cron' = 'user'
+): Promise<SyncMastersResult> {
   const user = await getAuthenticatedUser()
   const supabase = createServerClient()
   const now = new Date().toISOString()
@@ -59,7 +62,7 @@ export async function syncMasters(target: string | null): Promise<SyncMastersRes
         direction: 'pull', target: 'site',
         status: 'success',
         message: `新規${insertCount}件・更新${updateCount}件`,
-        performed_by: user!.id, performed_at: now,
+        performed_by: user!.id, performed_at: now, trigger_source: triggerSource,
       })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -67,7 +70,7 @@ export async function syncMasters(target: string | null): Promise<SyncMastersRes
       await supabase.from('sync_logs').insert({
         direction: 'pull', target: 'site',
         status: 'error', message: msg,
-        performed_by: user!.id, performed_at: now,
+        performed_by: user!.id, performed_at: now, trigger_source: triggerSource,
       })
     }
   }
@@ -200,7 +203,7 @@ export async function syncMasters(target: string | null): Promise<SyncMastersRes
     await supabase.from('sync_logs').insert({
       direction: 'pull', target: 'worker',
       status: 'success', message: `${workerRows.length}件取込`,
-      performed_by: user!.id, performed_at: now,
+      performed_by: user!.id, performed_at: now, trigger_source: triggerSource,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -208,7 +211,7 @@ export async function syncMasters(target: string | null): Promise<SyncMastersRes
     await supabase.from('sync_logs').insert({
       direction: 'pull', target: 'worker',
       status: 'error', message: msg,
-      performed_by: user!.id, performed_at: now,
+      performed_by: user!.id, performed_at: now, trigger_source: triggerSource,
     })
   }
 

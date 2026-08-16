@@ -60,4 +60,5 @@ export type SyncLog = {
   payload_snapshot: unknown
   performed_by: string | null
   performed_at: string
+  trigger_source: 'user' | 'cron'
 }
