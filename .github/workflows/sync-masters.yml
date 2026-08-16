@@ -1,0 +1,16 @@
+name: CBOマスタ定期取込
+
+on:
+  schedule:
+    # 毎日1回・JST 8:00（UTC 23時）
+    - cron: '0 23 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger sync
+        run: |
+          curl -sf -X GET "${{ secrets.APP_URL }}/api/cron/sync-masters" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
