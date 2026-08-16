@@ -4,7 +4,9 @@ import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { CellEditor } from '@/components/cell-editor'
-import { formatMonth, addMonths, todayYearMonth } from '@/lib/utils/date'
+import { DateRangeFilter } from '@/components/date-range-filter'
+import { ComboFilter } from '@/components/combo-filter'
+import { resolveRelativeDateRange, type DateRange } from '@/lib/utils/date-range'
 import type { ReportRowWithSite } from '@/types/frontend'
 
 type SortKey = 'work_date' | 'site' | 'worker'
@@ -32,7 +34,7 @@ function SortHeader({
 
 export default function ReportListPage() {
   const qc = useQueryClient()
-  const [month, setMonth] = useState(todayYearMonth)
+  const [dateRange, setDateRange] = useState<DateRange>(() => resolveRelativeDateRange('this_month'))
   const [siteFilter, setSiteFilter] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
   const [kubunFilter, setKubunFilter] = useState('')
@@ -41,11 +43,11 @@ export default function ReportListPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [editing, setEditing] = useState<ReportRowWithSite | null>(null)
 
-  const reportsKey = ['reports', month]
+  const reportsKey = ['reports', dateRange.from, dateRange.to]
   const { data: reports = [], isLoading, isError } = useQuery<ReportRowWithSite[]>({
     queryKey: reportsKey,
     queryFn: async () => {
-      const r = await fetch(`/api/reports?month=${month}`)
+      const r = await fetch(`/api/reports?from=${dateRange.from}&to=${dateRange.to}`)
       if (!r.ok) throw new Error(await r.text())
       return r.json()
     },
@@ -59,6 +61,10 @@ export default function ReportListPage() {
     return Array.from(new Set(reports.map(r => r.worker.company_name))).sort()
   }, [reports])
 
+  const nameOptions = useMemo(() => {
+    return Array.from(new Set(reports.map(r => r.worker.worker_name))).sort()
+  }, [reports])
+
   function handleSort(key: SortKey) {
     if (key === sortKey) {
       setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -69,12 +75,14 @@ export default function ReportListPage() {
   }
 
   const rows = useMemo(() => {
-    const q = nameQuery.trim().toLowerCase()
+    const site = siteFilter.trim().toLowerCase()
+    const company = companyFilter.trim().toLowerCase()
+    const name = nameQuery.trim().toLowerCase()
     const filtered = reports.filter(r => {
-      if (siteFilter && r.site.name !== siteFilter) return false
-      if (companyFilter && r.worker.company_name !== companyFilter) return false
+      if (site && !r.site.name.toLowerCase().includes(site)) return false
+      if (company && !r.worker.company_name.toLowerCase().includes(company)) return false
       if (kubunFilter && r.worker.source_kind !== kubunFilter) return false
-      if (q && !r.worker.worker_name.toLowerCase().includes(q)) return false
+      if (name && !r.worker.worker_name.toLowerCase().includes(name)) return false
       return true
     })
     const dir = sortDir === 'asc' ? 1 : -1
@@ -91,48 +99,31 @@ export default function ReportListPage() {
         <h1 className="text-xl font-bold mb-3">出面一覧</h1>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setMonth(m => addMonths(m, -1))}
-              className="text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100"
-            >
-              ◀
-            </button>
-            <span className="font-semibold text-gray-800 min-w-24 text-center">{formatMonth(month)}</span>
-            <button
-              onClick={() => setMonth(m => addMonths(m, 1))}
-              className="text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100"
-            >
-              ▶
-            </button>
-          </div>
-          <input
-            type="text"
+          <DateRangeFilter value={dateRange} onChange={setDateRange} />
+          <ComboFilter
             value={nameQuery}
-            onChange={e => setNameQuery(e.target.value)}
+            onChange={setNameQuery}
+            options={nameOptions}
             placeholder="氏名で検索..."
-            className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 min-w-40"
+            allLabel="全員"
+            className="min-w-40"
           />
-          <select
+          <ComboFilter
             value={siteFilter}
-            onChange={e => setSiteFilter(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white min-w-28"
-          >
-            <option value="">全現場</option>
-            {siteOptions.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <select
+            onChange={setSiteFilter}
+            options={siteOptions}
+            placeholder="現場名で検索..."
+            allLabel="全現場"
+            className="min-w-40"
+          />
+          <ComboFilter
             value={companyFilter}
-            onChange={e => setCompanyFilter(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white min-w-28"
-          >
-            <option value="">全会社</option>
-            {companyOptions.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+            onChange={setCompanyFilter}
+            options={companyOptions}
+            placeholder="会社名で検索..."
+            allLabel="全会社"
+            className="min-w-40"
+          />
           <select
             value={kubunFilter}
             onChange={e => setKubunFilter(e.target.value)}
