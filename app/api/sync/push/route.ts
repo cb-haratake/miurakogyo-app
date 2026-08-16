@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
         direction: 'push', target: 'report',
         record_id: report.id, cbo_report_id: null,
         status: 'error', message: 'reporter_cbo_user_id 未設定 — CBO_DEFAULT_REPORTER_ID を設定してください',
-        performed_by: user.id, performed_at: pushedAt,
+        performed_by: user.id, performed_at: pushedAt, trigger_source: 'user',
       })
       continue
     }
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
         status: 'success',
         message: report.sync_status === 'local_new' ? '新規作成' : '更新',
         payload_snapshot: { sent: payload, received: cboRawResponse },
-        performed_by: user.id, performed_at: pushedAt,
+        performed_by: user.id, performed_at: pushedAt, trigger_source: 'user',
       })
 
       pushed++
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
         record_id: report.id, cbo_report_id: report.cbo_report_id,
         status: 'error', message: msg,
         payload_snapshot: report,
-        performed_by: user.id, performed_at: pushedAt,
+        performed_by: user.id, performed_at: pushedAt, trigger_source: 'user',
       })
       errors++
     }

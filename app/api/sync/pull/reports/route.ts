@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     await supabase.from('sync_logs').insert({
       direction: 'pull', target: 'report',
       status: 'error', message: msg,
-      performed_by: user.id, performed_at: pulledAt,
+      performed_by: user.id, performed_at: pulledAt, trigger_source: 'user',
     })
     return NextResponse.json({ error: msg }, { status: 502 })
   }
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     direction: 'pull', target: 'report',
     status: hasErrors ? 'error' : 'success',
     message: skipped > 0 ? `${msgParts} | ${debugInfo}` : msgParts,
-    performed_by: user.id, performed_at: pulledAt,
+    performed_by: user.id, performed_at: pulledAt, trigger_source: 'user',
   })
 
   return NextResponse.json({ upserted, conflicts, skipped, skipReasons: skipReasons.slice(0, 5), errors: rowErrors })

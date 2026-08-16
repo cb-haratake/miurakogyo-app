@@ -85,7 +85,7 @@ export async function DELETE(
         record_id: id, cbo_report_id: existing.cbo_report_id,
         status: 'error', message: `CBO削除失敗: ${msg}`,
         payload_snapshot: existing,
-        performed_by: user.id,
+        performed_by: user.id, trigger_source: 'user',
       })
       return NextResponse.json({ error: `CBO削除に失敗しました: ${msg}` }, { status: 500 })
     }
@@ -100,7 +100,7 @@ export async function DELETE(
     status: 'success',
     message: existing.cbo_report_id ? 'CBO・ローカル両方削除' : 'ローカル削除（未同期）',
     payload_snapshot: existing,
-    performed_by: user.id,
+    performed_by: user.id, trigger_source: 'user',
   })
 
   const { error } = await supabase.from('daily_reports').delete().eq('id', id)

@@ -48,7 +48,7 @@ export async function POST(
     cbo_report_id: existing.id,
     status: 'success',
     message: action === 'accept_cbo' ? '競合解消: CBO版を採用' : '競合解消: アプリ版として再push設定',
-    performed_by: user.id,
+    performed_by: user.id, trigger_source: 'user',
   })
 
   return NextResponse.json(data)
