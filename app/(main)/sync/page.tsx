@@ -393,35 +393,58 @@ function SyncLogTable() {
 // ===== ページ =====
 
 export default function SyncPage() {
+  const [tab, setTab] = useState<'conflicts' | 'logs'>('conflicts')
+
   const { data: conflicts = [] } = useQuery<ConflictRow[]>({
     queryKey: ['conflicts'],
     queryFn: () => fetch('/api/conflicts').then(r => r.json()),
   })
 
   return (
-    <div className="p-6 space-y-8 overflow-y-auto flex-1">
-      {/* 競合解決 */}
-      <section>
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-base font-semibold text-gray-900">競合レコード</h2>
-          {conflicts.length > 0 && (
-            <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full font-bold">
-              {conflicts.length}
-            </span>
-          )}
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="px-6 pt-4 border-b border-gray-200 bg-white shrink-0">
+        <div className="flex gap-4">
+          <button
+            onClick={() => setTab('conflicts')}
+            className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 ${
+              tab === 'conflicts' ? 'border-blue-600 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            競合レコード
+            {conflicts.length > 0 && (
+              <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full font-bold">
+                {conflicts.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setTab('logs')}
+            className={`pb-3 text-sm font-medium border-b-2 ${
+              tab === 'logs' ? 'border-blue-600 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            同期ログ
+          </button>
         </div>
-        <p className="text-xs text-gray-400 mb-3">
-          取込時に CBO 側とアプリ側の両方で変更があったレコードです。
-          「CBO版を採用」で取込済みの値を確定、「再push」でアプリ版として CBOへ反映します。
-        </p>
-        <ConflictPanel />
-      </section>
+      </div>
 
-      {/* 同期ログ */}
-      <section>
-        <h2 className="text-base font-semibold text-gray-900 mb-3">同期ログ</h2>
-        <SyncLogTable />
-      </section>
+      <div className="p-6 overflow-y-auto flex-1">
+        {tab === 'conflicts' && (
+          <section>
+            <p className="text-xs text-gray-400 mb-3">
+              取込時に CBO 側とアプリ側の両方で変更があったレコードです。
+              「CBO版を採用」で取込済みの値を確定、「再push」でアプリ版として CBOへ反映します。
+            </p>
+            <ConflictPanel />
+          </section>
+        )}
+
+        {tab === 'logs' && (
+          <section>
+            <SyncLogTable />
+          </section>
+        )}
+      </div>
     </div>
   )
 }
