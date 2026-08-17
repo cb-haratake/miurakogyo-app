@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       await supabase.from('sync_logs').insert({
         direction: 'push', target: 'report',
         record_id: report.id, cbo_report_id: null,
-        status: 'error', message: 'reporter_cbo_user_id 未設定 — CBO_DEFAULT_REPORTER_ID を設定してください',
+        status: 'error', message: `${worker.worker_name}（${report.work_date}）: reporter_cbo_user_id 未設定 — CBO_DEFAULT_REPORTER_ID を設定してください`,
         performed_by: user.id, performed_at: pushedAt, trigger_source: 'user',
       })
       continue
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
         direction: 'push', target: 'report',
         record_id: report.id, cbo_report_id: cboReportId,
         status: 'success',
-        message: report.sync_status === 'local_new' ? '新規作成' : '更新',
+        message: `${worker.worker_name}（${report.work_date}）: ${report.sync_status === 'local_new' ? '新規作成' : '更新'}`,
         payload_snapshot: { sent: payload, received: cboRawResponse },
         performed_by: user.id, performed_at: pushedAt, trigger_source: 'user',
       })
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       await supabase.from('sync_logs').insert({
         direction: 'push', target: 'report',
         record_id: report.id, cbo_report_id: report.cbo_report_id,
-        status: 'error', message: msg,
+        status: 'error', message: `${worker.worker_name}（${report.work_date}）: ${msg}`,
         payload_snapshot: report,
         performed_by: user.id, performed_at: pushedAt, trigger_source: 'user',
       })

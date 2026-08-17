@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const msg = e instanceof Error ? e.message : String(e)
     await supabase.from('sync_logs').insert({
       direction: 'pull', target: 'report',
-      status: 'error', message: msg,
+      status: 'error', message: `[${site.name}] ${msg}`,
       performed_by: user.id, performed_at: pulledAt, trigger_source: 'user',
     })
     return NextResponse.json({ error: msg }, { status: 502 })
@@ -124,12 +124,11 @@ export async function POST(req: NextRequest) {
     hasErrors && `エラー${rowErrors.length}件`,
   ].filter(Boolean).join('・')
 
-  // スキップ理由の先頭3件をログに記録して原因を追跡できるようにする
-  const debugInfo = skipReasons.slice(0, 3).join(' / ')
   await supabase.from('sync_logs').insert({
     direction: 'pull', target: 'report',
     status: hasErrors ? 'error' : 'success',
-    message: skipped > 0 ? `${msgParts} | ${debugInfo}` : msgParts,
+    message: `[${site.name}] ${msgParts}`,
+    payload_snapshot: { from, to, skipReasons, rowErrors },
     performed_by: user.id, performed_at: pulledAt, trigger_source: 'user',
   })
 
