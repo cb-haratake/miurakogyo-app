@@ -7,9 +7,10 @@ import { buildAttendancePayload, createAttendanceReport, updateAttendanceReport 
 // cron/sync-masters)と同様にVercelのデフォルト実行時間制限を緩和する
 export const maxDuration = 300
 
-// CBO側の実際の許容レートは未確認のため、まずは控えめな並列数から開始する。
+// CBO側の実際の許容レートは未確認のため、段階的に上げて調整する。
+// 4並列で42件実行しsync_logsにエラーが出なかったため8に上げる。
 // 429等がsync_logsに出ないか確認しながら環境変数で調整できるようにしておく。
-const PUSH_CONCURRENCY = Number(process.env.CBO_PUSH_CONCURRENCY) || 4
+const PUSH_CONCURRENCY = Number(process.env.CBO_PUSH_CONCURRENCY) || 8
 
 export async function POST(req: NextRequest) {
   const user = await getAuthenticatedUser()
