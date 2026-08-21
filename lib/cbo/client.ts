@@ -7,12 +7,22 @@ const BASE_URL = process.env.CBO_BASE_URL ?? 'https://office.craft-bank.com/api'
 const THROTTLE_MS = 500
 let lastCallAt = 0
 
-async function throttle() {
-  const elapsed = Date.now() - lastCallAt
-  if (elapsed < THROTTLE_MS) {
-    await new Promise((r) => setTimeout(r, THROTTLE_MS - elapsed))
-  }
-  lastCallAt = Date.now()
+// throttle()は並列呼び出しされる（sync/push等）ため、素朴に lastCallAt を
+// 読み書きするだけだと複数呼び出しが同じ待ち時間を計算してしまい、待機後に
+// 一斉発火（バースト）してしまう。Promiseチェーンで直列化し、常に「直前の
+// 呼び出しが実際に許可された時刻」から500ms空けることを保証する。
+let throttleChain: Promise<void> = Promise.resolve()
+
+function throttle(): Promise<void> {
+  const gate = throttleChain.then(async () => {
+    const elapsed = Date.now() - lastCallAt
+    if (elapsed < THROTTLE_MS) {
+      await new Promise((r) => setTimeout(r, THROTTLE_MS - elapsed))
+    }
+    lastCallAt = Date.now()
+  })
+  throttleChain = gate.catch(() => {})
+  return gate
 }
 
 export class CboApiError extends Error {
