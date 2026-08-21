@@ -4,6 +4,9 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { listAttendanceReports } from '@/lib/cbo/masters'
 import { toReportRow } from '@/lib/cbo/normalize'
 
+// 現場によっては出面が数百件になり、1件ずつ詳細APIを呼ぶため時間がかかる
+export const maxDuration = 300
+
 export async function POST(req: NextRequest) {
   const user = await getAuthenticatedUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
