@@ -1,16 +1,33 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { CellEditor } from '@/components/cell-editor'
 import { DateRangeFilter } from '@/components/date-range-filter'
 import { ComboFilter } from '@/components/combo-filter'
 import { resolveRelativeDateRange, type DateRange } from '@/lib/utils/date-range'
 import type { ReportRowWithSite } from '@/types/frontend'
+import type { SyncStatus } from '@/types/db'
 
 type SortKey = 'work_date' | 'site' | 'worker'
 type SortDir = 'asc' | 'desc'
+
+const SYNC_STATUS_DISPLAY: Record<SyncStatus, { label: string; className: string }> = {
+  local_new: { label: '取込未済', className: 'bg-blue-100 text-blue-700' },
+  synced: { label: '取込済み', className: 'bg-gray-100 text-gray-600' },
+  local_edited: { label: '取込後変更あり', className: 'bg-orange-100 text-orange-700' },
+  // 競合はCBO側の変更を前提にしないため、取込後変更ありと同一表示にまとめる（解決は/syncページで行う）
+  conflict: { label: '取込後変更あり', className: 'bg-orange-100 text-orange-700' },
+}
+
+function SyncStatusBadge({ status }: { status: SyncStatus }) {
+  const { label, className } = SYNC_STATUS_DISPLAY[status]
+  return (
+    <span className={`text-xs px-1.5 py-0.5 rounded whitespace-nowrap ${className}`}>{label}</span>
+  )
+}
 
 function SortHeader({
   label, sortKey, currentKey, currentDir, onSort,
@@ -93,6 +110,29 @@ export default function ReportListPage() {
     })
   }, [reports, siteFilter, companyFilter, kubunFilter, nameQuery, sortKey, sortDir])
 
+  const unsyncedRows = useMemo(
+    () => rows.filter(r => r.sync_status === 'local_new' || r.sync_status === 'local_edited'),
+    [rows]
+  )
+
+  const push = useMutation({
+    mutationFn: () =>
+      fetch('/api/sync/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: unsyncedRows.map(r => r.id) }),
+      }).then(r => r.json()),
+    onSuccess: data => {
+      if (data.errors > 0) {
+        toast.warning(`反映完了: ${data.pushed}件（エラー${data.errors}件）`)
+      } else {
+        toast.success(`CBOへ反映完了: ${data.pushed}件`)
+      }
+      qc.invalidateQueries({ queryKey: reportsKey })
+    },
+    onError: () => toast.error('CBOへの反映に失敗しました'),
+  })
+
   return (
     <div className="flex flex-col h-full">
       <div className="px-6 py-4 border-b border-gray-200 bg-white">
@@ -142,6 +182,20 @@ export default function ReportListPage() {
             </button>
           )}
           <span className="text-xs text-gray-400 whitespace-nowrap">{rows.length}件</span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => push.mutate()}
+              disabled={push.isPending || unsyncedRows.length === 0}
+              className="px-2.5 md:px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
+            >
+              {push.isPending ? '反映中...' : 'CBOへ反映'}
+              {unsyncedRows.length > 0 && (
+                <span className="bg-white text-blue-600 rounded-full px-1.5 py-0.5 text-xs font-bold leading-none">
+                  {unsyncedRows.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -158,6 +212,7 @@ export default function ReportListPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 whitespace-nowrap">同期</th>
                   <SortHeader label="日付" sortKey="work_date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                   <SortHeader label="現場名" sortKey="site" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                   <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 whitespace-nowrap">区分</th>
@@ -176,6 +231,7 @@ export default function ReportListPage() {
                     onClick={() => setEditing(r)}
                     className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"
                   >
+                    <td className="px-3 py-2 whitespace-nowrap"><SyncStatusBadge status={r.sync_status} /></td>
                     <td className="px-3 py-2 text-xs whitespace-nowrap">{r.work_date}</td>
                     <td className="px-3 py-2 text-xs whitespace-nowrap">
                       <Link href={`/sites/${r.site.id}/attendance`} onClick={e => e.stopPropagation()} className="hover:text-blue-600">

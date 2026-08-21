@@ -8,29 +8,20 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { siteId, ids } = await req.json()
-  if (!siteId) return NextResponse.json({ error: 'siteId は必須です' }, { status: 400 })
+  if (!siteId && !ids?.length) {
+    return NextResponse.json({ error: 'siteId または ids のいずれかは必須です' }, { status: 400 })
+  }
 
   const supabase = createServerClient()
   const pushedAt = new Date().toISOString()
 
-  // 現場情報
-  const { data: site, error: siteError } = await supabase
-    .from('sites')
-    .select('id, cbo_order_id')
-    .eq('id', siteId)
-    .single()
-
-  if (siteError || !site) {
-    return NextResponse.json({ error: '現場が見つかりません' }, { status: 404 })
-  }
-
-  // 未同期レコードを取得
+  // 未同期レコードを取得（現場情報はレコードごとにJOINして取得し、複数現場をまたぐpushにも対応する）
   let query = supabase
     .from('daily_reports')
-    .select('*, worker:workers(*)')
-    .eq('site_id', siteId)
+    .select('*, worker:workers(*), site:sites(id, cbo_order_id)')
     .in('sync_status', ['local_new', 'local_edited'])
 
+  if (siteId) query = query.eq('site_id', siteId)
   if (ids?.length) query = query.in('id', ids)
 
   const { data: reports, error: reportsError } = await query
@@ -43,6 +34,18 @@ export async function POST(req: NextRequest) {
   for (const report of reports) {
     const worker = report.worker as Record<string, unknown>
     if (!worker) continue
+
+    const site = report.site as Record<string, unknown> | null
+    if (!site?.cbo_order_id) {
+      errors++
+      await supabase.from('sync_logs').insert({
+        direction: 'push', target: 'report',
+        record_id: report.id, cbo_report_id: null,
+        status: 'error', message: `${worker.worker_name}（${report.work_date}）: 現場のCBO連携情報（cbo_order_id）が未設定です`,
+        performed_by: user.id, performed_at: pushedAt, trigger_source: 'user',
+      })
+      continue
+    }
 
     const reporterId = report.reporter_cbo_user_id ?? process.env.CBO_DEFAULT_REPORTER_ID
     if (!reporterId) {
