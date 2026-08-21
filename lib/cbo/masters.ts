@@ -313,16 +313,24 @@ export async function listAttendanceReports(
   )
 
   // 3. 絞り込んだ件数分だけ詳細API呼び出し → tree から正規化
+  // 件数が多いと逐次呼び出しは時間がかかるため、仕様書が許容する範囲（並列1〜2）で並列化する
+  const DETAIL_CONCURRENCY = 2
   const reports: CboReport[] = []
-  for (const item of matched) {
-    try {
-      const detail = await cboFetch<{ data: { id: number; tree: ReportNode } }>(
-        `/personal_daily_reports/${item.id}`
-      )
-      reports.push(normalizeDetailReport(detail.data))
-    } catch {
-      continue
-    }
+  for (let i = 0; i < matched.length; i += DETAIL_CONCURRENCY) {
+    const chunk = matched.slice(i, i + DETAIL_CONCURRENCY)
+    const results = await Promise.all(
+      chunk.map(async item => {
+        try {
+          const detail = await cboFetch<{ data: { id: number; tree: ReportNode } }>(
+            `/personal_daily_reports/${item.id}`
+          )
+          return normalizeDetailReport(detail.data)
+        } catch {
+          return null
+        }
+      })
+    )
+    reports.push(...results.filter((r): r is CboReport => r !== null))
   }
   return reports
 }
