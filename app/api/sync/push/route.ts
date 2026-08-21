@@ -3,6 +3,14 @@ import { createServerClient } from '@/lib/supabase/server'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { buildAttendancePayload, createAttendanceReport, updateAttendanceReport } from '@/lib/cbo/reports'
 
+// 件数が多い現場だと1件あたり数秒かかることがあるため、取込側(pull/reports, pull/masters,
+// cron/sync-masters)と同様にVercelのデフォルト実行時間制限を緩和する
+export const maxDuration = 300
+
+// CBO側の実際の許容レートは未確認のため、まずは控えめな並列数から開始する。
+// 429等がsync_logsに出ないか確認しながら環境変数で調整できるようにしておく。
+const PUSH_CONCURRENCY = Number(process.env.CBO_PUSH_CONCURRENCY) || 4
+
 export async function POST(req: NextRequest) {
   const user = await getAuthenticatedUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -31,9 +39,9 @@ export async function POST(req: NextRequest) {
   let pushed = 0
   let errors = 0
 
-  for (const report of reports) {
+  const pushOne = async (report: (typeof reports)[number]) => {
     const worker = report.worker as Record<string, unknown>
-    if (!worker) continue
+    if (!worker) return
 
     const site = report.site as Record<string, unknown> | null
     if (!site?.cbo_order_id) {
@@ -44,7 +52,7 @@ export async function POST(req: NextRequest) {
         status: 'error', message: `${worker.worker_name}（${report.work_date}）: 現場のCBO連携情報（cbo_order_id）が未設定です`,
         performed_by: user.id, performed_at: pushedAt, trigger_source: 'user',
       })
-      continue
+      return
     }
 
     // 報告者が未設定の場合、自社員は本人が自己申告したものとみなし本人のCBO IDを使う
@@ -60,7 +68,7 @@ export async function POST(req: NextRequest) {
         status: 'error', message: `${worker.worker_name}（${report.work_date}）: reporter_cbo_user_id 未設定 — 協力会社のため自己申告できません。CBO_DEFAULT_REPORTER_ID を設定してください`,
         performed_by: user.id, performed_at: pushedAt, trigger_source: 'user',
       })
-      continue
+      return
     }
 
     try {
@@ -127,6 +135,14 @@ export async function POST(req: NextRequest) {
       })
       errors++
     }
+  }
+
+  // CBO呼び出し自体に数秒かかることがあるため、逐次実行だと件数分だけ直線的に
+  // 時間がかかる。件数分をチャンクに分けて並列実行し、待ち時間を重ねる。
+  // CBO側への発信間隔は lib/cbo/client.ts の throttle() が担保する。
+  for (let i = 0; i < reports.length; i += PUSH_CONCURRENCY) {
+    const chunk = reports.slice(i, i + PUSH_CONCURRENCY)
+    await Promise.all(chunk.map(pushOne))
   }
 
   return NextResponse.json({ pushed, errors })
