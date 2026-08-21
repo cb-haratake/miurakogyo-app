@@ -55,6 +55,7 @@ export default function ReportListPage() {
   const [siteFilter, setSiteFilter] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
   const [kubunFilter, setKubunFilter] = useState('')
+  const [syncStatusFilter, setSyncStatusFilter] = useState<'' | 'local_new' | 'synced' | 'local_edited'>('')
   const [nameQuery, setNameQuery] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('work_date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -99,6 +100,8 @@ export default function ReportListPage() {
       if (site && !r.site.name.toLowerCase().includes(site)) return false
       if (company && !r.worker.company_name.toLowerCase().includes(company)) return false
       if (kubunFilter && r.worker.source_kind !== kubunFilter) return false
+      if (syncStatusFilter === 'local_edited' && r.sync_status !== 'local_edited' && r.sync_status !== 'conflict') return false
+      if (syncStatusFilter && syncStatusFilter !== 'local_edited' && r.sync_status !== syncStatusFilter) return false
       if (name && !r.worker.worker_name.toLowerCase().includes(name)) return false
       return true
     })
@@ -108,7 +111,7 @@ export default function ReportListPage() {
       if (sortKey === 'site') return a.site.name.localeCompare(b.site.name, 'ja') * dir
       return a.worker.worker_name.localeCompare(b.worker.worker_name, 'ja') * dir
     })
-  }, [reports, siteFilter, companyFilter, kubunFilter, nameQuery, sortKey, sortDir])
+  }, [reports, siteFilter, companyFilter, kubunFilter, syncStatusFilter, nameQuery, sortKey, sortDir])
 
   const unsyncedRows = useMemo(
     () => rows.filter(r => r.sync_status === 'local_new' || r.sync_status === 'local_edited'),
@@ -173,9 +176,19 @@ export default function ReportListPage() {
             <option value="employee">自社員</option>
             <option value="partner">協力会社</option>
           </select>
-          {(nameQuery || siteFilter || companyFilter || kubunFilter) && (
+          <select
+            value={syncStatusFilter}
+            onChange={e => setSyncStatusFilter(e.target.value as typeof syncStatusFilter)}
+            className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+          >
+            <option value="">全同期状態</option>
+            <option value="local_new">取込未済</option>
+            <option value="synced">取込済み</option>
+            <option value="local_edited">取込後変更あり</option>
+          </select>
+          {(nameQuery || siteFilter || companyFilter || kubunFilter || syncStatusFilter) && (
             <button
-              onClick={() => { setNameQuery(''); setSiteFilter(''); setCompanyFilter(''); setKubunFilter('') }}
+              onClick={() => { setNameQuery(''); setSiteFilter(''); setCompanyFilter(''); setKubunFilter(''); setSyncStatusFilter('') }}
               className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1.5 rounded hover:bg-gray-100 whitespace-nowrap"
             >
               クリア
