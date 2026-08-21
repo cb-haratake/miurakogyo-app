@@ -57,17 +57,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 502 })
   }
 
-  // 既存レコードの sync_status を取得（競合検知用）
-  const cboIds = cboReports.map((r) => r.cboReportId).filter(Boolean)
-  const { data: existingReports } = cboIds.length
-    ? await supabase
-        .from('daily_reports')
-        .select('id, cbo_report_id, sync_status')
-        .in('cbo_report_id', cboIds)
-    : { data: [] }
+  // 既存レコードを取得（cbo_report_id一致での競合検知、および
+  // 現場・作業者・日付一致での未紐付けレコードとの突合の両方に使う）
+  const { data: existingReports } = await supabase
+    .from('daily_reports')
+    .select('id, worker_id, work_date, cbo_report_id, sync_status, day_yakan_id, over_hour, work_content_id, health_type_id')
+    .eq('site_id', site.id)
+    .gte('work_date', from)
+    .lte('work_date', to)
 
-  const existingMap = new Map(
-    (existingReports ?? []).map((r) => [r.cbo_report_id as string, r])
+  const existingByCboId = new Map(
+    (existingReports ?? []).filter((r) => r.cbo_report_id).map((r) => [r.cbo_report_id as string, r])
+  )
+  const existingByWorkerDate = new Map(
+    (existingReports ?? []).map((r) => [`${r.worker_id}:${r.work_date}`, r])
   )
 
   let upserted = 0
@@ -94,8 +97,39 @@ export async function POST(req: NextRequest) {
 
     if (!workerId) continue
 
-    const existing = existingMap.get(report.cboReportId)
-    const isConflict = existing?.sync_status === 'local_edited'
+    const existingByCbo = report.cboReportId ? existingByCboId.get(report.cboReportId) : undefined
+    const existingByKey = existingByWorkerDate.get(`${workerId}:${report.date}`)
+
+    // cbo_report_id で未紐付けだが、現場・作業者・日付が一致するローカルレコードが既にある場合。
+    // CBO側での新規作成を避けるため、内容を上書きせず紐付けのみ行う。
+    // 内容が一致しなければ「出面側」を正として競合扱いにし、人による確認（再push）を促す。
+    if (!existingByCbo && existingByKey) {
+      const pulled = toReportRow(report, site.id, workerId, pulledAt)
+      const sameContent =
+        existingByKey.day_yakan_id === pulled.day_yakan_id &&
+        Number(existingByKey.over_hour) === Number(pulled.over_hour) &&
+        existingByKey.work_content_id === pulled.work_content_id &&
+        existingByKey.health_type_id === pulled.health_type_id
+
+      const { error } = await supabase
+        .from('daily_reports')
+        .update({
+          cbo_report_id: report.cboReportId,
+          cbo_synced_at: pulledAt,
+          sync_status: sameContent ? 'synced' : 'conflict',
+        })
+        .eq('id', existingByKey.id)
+
+      if (error) {
+        rowErrors.push(`report ${report.cboReportId}: ${error.message}`)
+      } else {
+        upserted++
+        if (!sameContent) conflicts++
+      }
+      continue
+    }
+
+    const isConflict = existingByCbo?.sync_status === 'local_edited'
 
     const row = toReportRow(report, site.id, workerId, pulledAt)
     const rowWithStatus = {
