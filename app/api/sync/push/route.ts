@@ -47,13 +47,17 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    const reporterId = report.reporter_cbo_user_id ?? process.env.CBO_DEFAULT_REPORTER_ID
+    // 報告者が未設定の場合、自社員は本人が自己申告したものとみなし本人のCBO IDを使う
+    // （CBOから取り込んだ自社員レコードで既に使われているのと同じロジック）。
+    // 協力会社はCBO側に本人アカウントがなく自己申告できないため、CBO_DEFAULT_REPORTER_ID が必要。
+    const selfReportId = worker.source_kind === 'employee' ? worker.cbo_company_user_id : null
+    const reporterId = report.reporter_cbo_user_id ?? selfReportId ?? process.env.CBO_DEFAULT_REPORTER_ID
     if (!reporterId) {
       errors++
       await supabase.from('sync_logs').insert({
         direction: 'push', target: 'report',
         record_id: report.id, cbo_report_id: null,
-        status: 'error', message: `${worker.worker_name}（${report.work_date}）: reporter_cbo_user_id 未設定 — CBO_DEFAULT_REPORTER_ID を設定してください`,
+        status: 'error', message: `${worker.worker_name}（${report.work_date}）: reporter_cbo_user_id 未設定 — 協力会社のため自己申告できません。CBO_DEFAULT_REPORTER_ID を設定してください`,
         performed_by: user.id, performed_at: pushedAt, trigger_source: 'user',
       })
       continue
