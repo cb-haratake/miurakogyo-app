@@ -33,9 +33,10 @@ export async function POST(req: NextRequest) {
   if (siteId) query = query.eq('site_id', siteId)
   if (ids?.length) query = query.in('id', ids)
 
-  const { data: reports, error: reportsError } = await query
+  const { data: reportsData, error: reportsError } = await query
   if (reportsError) return NextResponse.json({ error: reportsError.message }, { status: 500 })
-  if (!reports?.length) return NextResponse.json({ pushed: 0, errors: 0 })
+  if (!reportsData?.length) return NextResponse.json({ pushed: 0, errors: 0 })
+  const reports = reportsData
 
   let pushed = 0
   let errors = 0
@@ -139,12 +140,21 @@ export async function POST(req: NextRequest) {
   }
 
   // CBO呼び出し自体に数秒かかることがあるため、逐次実行だと件数分だけ直線的に
-  // 時間がかかる。件数分をチャンクに分けて並列実行し、待ち時間を重ねる。
-  // CBO側への発信間隔は lib/cbo/client.ts の throttle() が担保する。
-  for (let i = 0; i < reports.length; i += PUSH_CONCURRENCY) {
-    const chunk = reports.slice(i, i + PUSH_CONCURRENCY)
-    await Promise.all(chunk.map(pushOne))
+  // 時間がかかる。ワーカープール方式（空いた枠に次のレコードを詰める）で並列実行し、
+  // 待ち時間を重ねる。チャンク単位で区切って「一番遅い1件」を毎回待つ方式だと、
+  // その待ち合わせ分がロスになるため採用しない。同時実行数の上限はPUSH_CONCURRENCYで
+  // 変わらず、CBO側への発信間隔は lib/cbo/client.ts の throttle() が担保する。
+  let cursor = 0
+  async function worker() {
+    while (true) {
+      const index = cursor++
+      if (index >= reports.length) return
+      await pushOne(reports[index])
+    }
   }
+  await Promise.all(
+    Array.from({ length: Math.min(PUSH_CONCURRENCY, reports.length) }, () => worker())
+  )
 
   return NextResponse.json({ pushed, errors })
 }
