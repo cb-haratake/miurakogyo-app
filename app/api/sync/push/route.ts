@@ -8,9 +8,10 @@ import { buildAttendancePayload, createAttendanceReport, updateAttendanceReport 
 export const maxDuration = 300
 
 // CBO側の実際の許容レートは未確認のため、段階的に上げて調整する。
-// 4並列で42件実行しsync_logsにエラーが出なかったため8に上げる。
-// 429等がsync_logsに出ないか確認しながら環境変数で調整できるようにしておく。
-const PUSH_CONCURRENCY = Number(process.env.CBO_PUSH_CONCURRENCY) || 8
+// 4並列→8並列（ワーカープール化後、76件）まで実行しsync_logsにエラーが
+// 出なかったため12に上げる。429等がsync_logsに出ないか確認しながら
+// 環境変数で調整できるようにしておく。
+const PUSH_CONCURRENCY = Number(process.env.CBO_PUSH_CONCURRENCY) || 12
 
 export async function POST(req: NextRequest) {
   const user = await getAuthenticatedUser()
