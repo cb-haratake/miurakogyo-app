@@ -558,7 +558,9 @@ export function AttendanceGrid({ siteId, month, reports, isAsbestos, onRefresh }
 
       {/* Grid */}
       <div className="flex-1 overflow-auto touch-manipulation" style={{ userSelect: 'none' }}>
-        <table className="border-collapse text-xs">
+        {/* border-collapse は sticky セルと組み合わせるとスクロール中に罫線がずれる
+            既知の不具合があるため border-separate に変更する */}
+        <table className="border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
               <th

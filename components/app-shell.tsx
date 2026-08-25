@@ -96,7 +96,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
           <span className="text-white font-semibold text-sm">出面・石綿記録</span>
         </div>
-        {children}
+        {/* ページ側は h-full を使っているため、携帯用トップバー分の高さを引いた
+            残り領域として flex-1 で確保する（h-full のままだと親全体の高さと
+            衝突し、モバイルでは下端がトップバーの分だけ見切れてしまう） */}
+        <div className="flex-1 overflow-hidden">
+          {children}
+        </div>
       </div>
     </div>
   )
