@@ -126,12 +126,13 @@ export default function ReportListPage() {
         body: JSON.stringify({ ids: unsyncedRows.map(r => r.id) }),
       }).then(r => r.json()),
     onSuccess: data => {
-      if (data.errors > 0) {
-        toast.warning(`反映完了: ${data.pushed}件（エラー${data.errors}件）`)
+      if (data.error) {
+        toast.error(data.error)
+      } else if (!data.accepted) {
+        toast.info('反映対象がありません')
       } else {
-        toast.success(`CBOへ反映完了: ${data.pushed}件`)
+        toast.success(`${data.accepted}件の反映を開始しました。画面を離れても処理は継続され、結果は同期ログでご確認いただけます。`)
       }
-      qc.invalidateQueries({ queryKey: reportsKey })
     },
     onError: () => toast.error('CBOへの反映に失敗しました'),
   })

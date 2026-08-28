@@ -1,0 +1,26 @@
+name: CBO出面自動反映
+
+on:
+  schedule:
+    # 毎日1回・JST 20:00（UTC 11時）
+    - cron: '0 11 * * *'
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'バックフィル開始日（YYYY-MM-DD）。省略時は直近7日分のみ反映'
+        required: false
+        type: string
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger push
+        run: |
+          SINCE="${{ github.event.inputs.since }}"
+          URL="${{ secrets.APP_URL }}/api/cron/sync-reports"
+          if [ -n "$SINCE" ]; then
+            URL="${URL}?since=${SINCE}"
+          fi
+          curl -sfL -X GET "$URL" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
