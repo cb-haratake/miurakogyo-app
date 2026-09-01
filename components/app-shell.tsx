@@ -70,6 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NavItem href="/" label="現場一覧" />
           <NavItem href="/reports" label="出面一覧" />
           <NavItem href="/masters" label="マスタ管理" />
+          <NavItem href="/manual" label="操作マニュアル" />
           <a
             href="https://office.craft-bank.com/orders?custom_view_id=8440&per_page=100&sort_asc_desc=desc&sort_key=latest_updated_at"
             target="_blank"
