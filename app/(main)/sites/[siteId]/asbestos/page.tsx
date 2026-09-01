@@ -35,6 +35,12 @@ export default function AsbestosPage({
     r => r.sync_status === 'local_new' || r.sync_status === 'local_edited'
   ).length
 
+  const { data: workerOrderRows = [] } = useQuery<{ worker_id: string; sort_order: number }[]>({
+    queryKey: ['site', siteId, 'worker-order'],
+    queryFn: () => fetch(`/api/sites/${siteId}/worker-order`).then(r => r.json()),
+  })
+  const workerOrder = new Map(workerOrderRows.map(r => [r.worker_id, r.sort_order]))
+
   return (
     <div className="flex flex-col h-full">
       {/* 通常ヘッダ（印刷時は非表示） */}
@@ -114,6 +120,7 @@ export default function AsbestosPage({
             siteId={siteId}
             month={month}
             reports={reports}
+            workerOrder={workerOrder}
             onRefresh={() => qc.invalidateQueries({ queryKey: reportsKey })}
           />
         )}

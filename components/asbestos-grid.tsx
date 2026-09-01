@@ -10,6 +10,7 @@ type Props = {
   siteId: string
   month: string
   reports: ReportRow[]
+  workerOrder: Map<string, number>
   onRefresh: () => void
 }
 
@@ -30,17 +31,17 @@ const HEALTH_COLOR: Record<string, string> = {
   '106556': 'text-green-600', '106557': 'text-yellow-600', '106558': 'text-red-600',
 }
 
-function buildWorkers(reports: ReportRow[]): WorkerSummary[] {
+function buildWorkers(reports: ReportRow[], workerOrder: Map<string, number>): WorkerSummary[] {
   const map = new Map<string, WorkerSummary>()
   for (const r of reports) {
     if (!map.has(r.worker_id)) map.set(r.worker_id, r.worker)
   }
-  return Array.from(map.values()).sort(compareWorkers)
+  return Array.from(map.values()).sort((a, b) => compareWorkers(a, b, workerOrder))
 }
 
-export function AsbestosGrid({ siteId, month, reports, onRefresh }: Props) {
+export function AsbestosGrid({ siteId, month, reports, workerOrder, onRefresh }: Props) {
   const days = getDaysInMonth(month)
-  const workers = buildWorkers(reports)
+  const workers = buildWorkers(reports, workerOrder)
   const [editing, setEditing] = useState<EditTarget | null>(null)
   const reportMap = new Map(reports.map(r => [`${r.worker_id}_${r.work_date}`, r]))
 

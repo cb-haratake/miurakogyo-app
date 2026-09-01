@@ -27,16 +27,19 @@ type Params = {
   site: Site
   reports: ReportRow[]
   month: string
+  workerOrder?: Map<string, number>
 }
 
-export async function buildAsbestosWorkbook({ site, reports, month }: Params): Promise<Buffer> {
+export async function buildAsbestosWorkbook({ site, reports, month, workerOrder }: Params): Promise<Buffer> {
   const [, m] = month.split('-').map(Number)
 
   const workerMap = new Map<string, WorkerSummary>()
   for (const r of reports) {
     if (!workerMap.has(r.worker_id)) workerMap.set(r.worker_id, r.worker)
   }
-  const workers = [...workerMap.values()].sort(compareWorkers).slice(0, MAX_WORKER_ROWS)
+  const workers = [...workerMap.values()]
+    .sort((a, b) => compareWorkers(a, b, workerOrder))
+    .slice(0, MAX_WORKER_ROWS)
   const reportMap = new Map(reports.map(r => [`${r.worker_id}_${r.work_date}`, r]))
 
   const allDays = getDaysInMonth(month)

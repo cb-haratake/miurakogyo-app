@@ -41,6 +41,14 @@ export default function AttendancePage({
     r => r.sync_status === 'local_new' || r.sync_status === 'local_edited'
   ).length
 
+  // 現場ごとの作業者並び順（月をまたいでも同じなので month は依存に含めない）
+  const workerOrderKey = ['site', siteId, 'worker-order']
+  const { data: workerOrderRows = [] } = useQuery<{ worker_id: string; sort_order: number }[]>({
+    queryKey: workerOrderKey,
+    queryFn: () => fetch(`/api/sites/${siteId}/worker-order`).then(r => r.json()),
+  })
+  const workerOrder = new Map(workerOrderRows.map(r => [r.worker_id, r.sort_order]))
+
   const isAsbestos = view === 'asbestos'
 
   return (
@@ -151,6 +159,7 @@ export default function AttendancePage({
             siteId={siteId}
             month={month}
             reports={reports}
+            workerOrder={workerOrder}
             onRefresh={() => qc.invalidateQueries({ queryKey: reportsKey })}
           />
         </div>
@@ -160,7 +169,9 @@ export default function AttendancePage({
           month={month}
           reports={reports}
           isAsbestos={site?.is_asbestos ?? false}
+          workerOrder={workerOrder}
           onRefresh={() => qc.invalidateQueries({ queryKey: reportsKey })}
+          onReorder={() => qc.invalidateQueries({ queryKey: workerOrderKey })}
         />
       )}
     </div>
