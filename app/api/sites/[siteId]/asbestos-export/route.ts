@@ -24,7 +24,7 @@ export async function GET(
   const from = `${month}-01`
   const to = new Date(Number(y), Number(m), 0).toISOString().slice(0, 10)
 
-  const [{ data: site }, { data: reports }] = await Promise.all([
+  const [{ data: site }, { data: reports }, { data: orderRows }] = await Promise.all([
     supabase.from('sites').select('*').eq('id', siteId).single(),
     supabase
       .from('daily_reports')
@@ -40,16 +40,20 @@ export async function GET(
       .lte('work_date', to)
       .order('work_date')
       .order('worker_id'),
+    supabase.from('site_worker_orders').select('worker_id, sort_order').eq('site_id', siteId),
   ])
 
   if (!site || !reports) {
     return NextResponse.json({ error: 'データ取得に失敗しました' }, { status: 500 })
   }
 
+  const workerOrder = new Map((orderRows ?? []).map(r => [r.worker_id, r.sort_order]))
+
   const buf = await buildAsbestosWorkbook({
     site: site as Site,
     reports: reports as unknown as ReportRow[],
     month,
+    workerOrder,
   })
 
   const fileName = `石綿作業従事者作業記録_${site.name ?? siteId}_${month}.xlsx`

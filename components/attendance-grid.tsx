@@ -16,7 +16,9 @@ type Props = {
   month: string
   reports: ReportRow[]
   isAsbestos: boolean
+  workerOrder: Map<string, number>
   onRefresh: () => void
+  onReorder: () => void
 }
 
 // タッチ主体の端末（スマホ・タブレット）かどうか。SSR時は false
@@ -93,7 +95,7 @@ const STATUS_BADGE_COLOR: Record<string, string> = {
   synced: '',
 }
 
-export function AttendanceGrid({ siteId, month, reports, isAsbestos, onRefresh }: Props) {
+export function AttendanceGrid({ siteId, month, reports, isAsbestos, workerOrder, onRefresh, onReorder }: Props) {
   const days = getDaysInMonth(month)
 
   const [extraWorkers, setExtraWorkers] = useState<Worker[]>([])
@@ -106,6 +108,9 @@ export function AttendanceGrid({ siteId, month, reports, isAsbestos, onRefresh }
   const [showTotals, setShowTotals] = useState(false)
   const isCoarse = useCoarsePointer()
   const [selectMode, setSelectMode] = useState(false)
+  const [reorderMode, setReorderMode] = useState(false)
+  const [dragWorkerId, setDragWorkerId] = useState<string | null>(null)
+  const [dragOverWorkerId, setDragOverWorkerId] = useState<string | null>(null)
 
   // Map of all available workers (reports + manually added)
   const allWorkerMap = useMemo(() => {
@@ -120,8 +125,8 @@ export function AttendanceGrid({ siteId, month, reports, isAsbestos, onRefresh }
   }, [reports, extraWorkers])
 
   const allWorkers = useMemo(() =>
-    [...allWorkerMap.values()].sort(compareWorkers),
-    [allWorkerMap]
+    [...allWorkerMap.values()].sort((a, b) => compareWorkers(a, b, workerOrder)),
+    [allWorkerMap, workerOrder]
   )
 
   const reportMap = new Map(reports.map(r => [`${r.worker_id}_${r.work_date}`, r]))
@@ -199,6 +204,45 @@ export function AttendanceGrid({ siteId, month, reports, isAsbestos, onRefresh }
     onError: (e: Error) => toast.error(e.message),
   })
   deleteMutateRef.current = deleteMutation.mutate
+
+  const reorderMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await fetch(`/api/sites/${siteId}/worker-order`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'エラー')
+      return data
+    },
+    onSuccess: () => {
+      toast.success('並び順を更新しました')
+      onReorder()
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  // 並び替えモード: ドラッグ元とドロップ先が同じ会社の場合のみ、その会社内の並びを更新する
+  function handleDropOnWorker(targetWorker: WorkerSummary) {
+    setDragOverWorkerId(null)
+    const sourceId = dragWorkerId
+    setDragWorkerId(null)
+    if (!sourceId || sourceId === targetWorker.id) return
+
+    const source = allWorkers.find(w => w.id === sourceId)
+    if (!source || source.company_name !== targetWorker.company_name) return
+
+    const companyWorkers = allWorkers.filter(w => w.company_name === targetWorker.company_name)
+    const withoutSource = companyWorkers.filter(w => w.id !== sourceId)
+    const targetIdx = withoutSource.findIndex(w => w.id === targetWorker.id)
+    const reordered = [
+      ...withoutSource.slice(0, targetIdx),
+      source,
+      ...withoutSource.slice(targetIdx),
+    ]
+    reorderMutation.mutate(reordered.map(w => w.id))
+  }
 
   // End cell-selection drag on global mouseup
   useEffect(() => {
@@ -315,6 +359,7 @@ export function AttendanceGrid({ siteId, month, reports, isAsbestos, onRefresh }
   }, [])
 
   function handleCellMouseDown(wIdx: number, dIdx: number, e: React.MouseEvent) {
+    if (reorderMode) return
     e.preventDefault()
     hasDraggedRef.current = false
 
@@ -351,6 +396,7 @@ export function AttendanceGrid({ siteId, month, reports, isAsbestos, onRefresh }
   }
 
   function handleCellMouseUp(wIdx: number, dIdx: number, worker: WorkerSummary, day: string) {
+    if (reorderMode) return
     // タッチ端末: 通常モードはシングルタップで即エディタを開く
     if (isCoarse) {
       if (!selectMode) {
@@ -533,25 +579,39 @@ export function AttendanceGrid({ siteId, month, reports, isAsbestos, onRefresh }
         ) : (
           <>
             <button
-              onClick={() => setShowAddModal(true)}
-              className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50"
+              onClick={() => setReorderMode(v => !v)}
+              className={`text-sm px-3 py-1.5 border rounded ${reorderMode ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
             >
-              ＋ 作業者を追加
+              {reorderMode ? '並び替え完了' : '並び替え'}
             </button>
-            <button
-              onClick={() => setShowTotals(v => !v)}
-              className={`text-sm px-3 py-1.5 border rounded ${showTotals ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
-            >
-              人工合計
-            </button>
-            {clipboard && (
-              <span className="text-xs text-gray-400 ml-2 italic">
-                {isCoarse ? 'コピー済（セル選択後に貼り付け）' : 'コピー済（セル選択後に Ctrl+V）'}
+            {reorderMode ? (
+              <span className="text-xs text-gray-400">
+                行をドラッグして同じ会社内で並び替えできます
               </span>
+            ) : (
+              <>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50"
+                >
+                  ＋ 作業者を追加
+                </button>
+                <button
+                  onClick={() => setShowTotals(v => !v)}
+                  className={`text-sm px-3 py-1.5 border rounded ${showTotals ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  人工合計
+                </button>
+                {clipboard && (
+                  <span className="text-xs text-gray-400 ml-2 italic">
+                    {isCoarse ? 'コピー済（セル選択後に貼り付け）' : 'コピー済（セル選択後に Ctrl+V）'}
+                  </span>
+                )}
+                <span className="ml-auto text-xs text-gray-600 max-md:hidden">
+                  延べ人数: <span className="font-semibold">{reports.length}人日</span>
+                </span>
+              </>
             )}
-            <span className="ml-auto text-xs text-gray-600 max-md:hidden">
-              延べ人数: <span className="font-semibold">{reports.length}人日</span>
-            </span>
           </>
         )}
       </div>
@@ -605,10 +665,25 @@ export function AttendanceGrid({ siteId, month, reports, isAsbestos, onRefresh }
 
               return (
                 <Fragment key={worker.id}>
-                  <tr className="hover:bg-gray-50/50">
-                    <td className="sticky left-0 z-10 bg-white border border-gray-200 px-3 py-1.5 whitespace-nowrap">
-                      <div className="text-gray-400 text-xs leading-tight">{worker.company_name}</div>
-                      <div className="font-medium text-gray-900">{worker.worker_name}</div>
+                  <tr
+                    className={`hover:bg-gray-50/50 ${reorderMode && dragOverWorkerId === worker.id ? 'outline outline-2 outline-blue-400 -outline-offset-2' : ''}`}
+                    onDragOver={reorderMode ? e => { e.preventDefault(); setDragOverWorkerId(worker.id) } : undefined}
+                    onDragLeave={reorderMode ? () => setDragOverWorkerId(prev => (prev === worker.id ? null : prev)) : undefined}
+                    onDrop={reorderMode ? e => { e.preventDefault(); handleDropOnWorker(worker) } : undefined}
+                  >
+                    <td
+                      className={`sticky left-0 z-10 bg-white border border-gray-200 px-3 py-1.5 whitespace-nowrap ${reorderMode ? 'cursor-move' : ''}`}
+                      draggable={reorderMode}
+                      onDragStart={reorderMode ? () => setDragWorkerId(worker.id) : undefined}
+                      onDragEnd={reorderMode ? () => { setDragWorkerId(null); setDragOverWorkerId(null) } : undefined}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {reorderMode && <span className="text-gray-300 select-none">⠿</span>}
+                        <div>
+                          <div className="text-gray-400 text-xs leading-tight">{worker.company_name}</div>
+                          <div className="font-medium text-gray-900">{worker.worker_name}</div>
+                        </div>
+                      </div>
                     </td>
                     {days.map((day, dIdx) => {
                       const report = reportMap.get(`${worker.id}_${day}`)

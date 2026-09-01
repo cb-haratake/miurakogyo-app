@@ -8,13 +8,26 @@ function companyPriority(companyName: string | null | undefined): number {
   return 2
 }
 
-export function compareWorkers(a: WorkerSummary, b: WorkerSummary): number {
+export function compareWorkers(
+  a: WorkerSummary,
+  b: WorkerSummary,
+  orderMap?: Map<string, number>
+): number {
   const pa = companyPriority(a.company_name)
   const pb = companyPriority(b.company_name)
   if (pa !== pb) return pa - pb
   const co = (a.company_name ?? '').localeCompare(b.company_name ?? '', 'ja')
   if (co !== 0) return co
-  // 会社内は登録された順（同時刻に一括登録された場合は氏名の五十音順にフォールバック）
+
+  // 現場ごとに手動で並び替えた作業者を優先する。両方に手動順があれば数値比較、
+  // 片方だけなら手動順ありを先に、両方なければ登録された順（同時刻に一括登録された
+  // 場合は氏名の五十音順）にフォールバック
+  const oa = orderMap?.get(a.id)
+  const ob = orderMap?.get(b.id)
+  if (oa !== undefined && ob !== undefined) return oa - ob
+  if (oa !== undefined) return -1
+  if (ob !== undefined) return 1
+
   const ca = a.created_at.localeCompare(b.created_at)
   if (ca !== 0) return ca
   return a.worker_name.localeCompare(b.worker_name, 'ja')
