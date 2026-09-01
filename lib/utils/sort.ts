@@ -20,7 +20,8 @@ export function compareWorkers(
   if (co !== 0) return co
 
   // 現場ごとに手動で並び替えた作業者を優先する。両方に手動順があれば数値比較、
-  // 片方だけなら手動順ありを先に、両方なければ登録された順→氏名にフォールバック
+  // 片方だけなら手動順ありを先に、両方なければ登録された順（同時刻に一括登録された
+  // 場合は氏名の五十音順）にフォールバック
   const oa = orderMap?.get(a.id)
   const ob = orderMap?.get(b.id)
   if (oa !== undefined && ob !== undefined) return oa - ob
