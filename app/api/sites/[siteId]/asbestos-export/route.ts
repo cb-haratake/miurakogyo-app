@@ -30,7 +30,7 @@ export async function GET(
       .from('daily_reports')
       .select(`
         *,
-        worker:workers(id, source_kind, company_name, worker_name, cbo_company_user_id, cbo_supplier_id, cbo_supplier_staff_id),
+        worker:workers(id, source_kind, company_name, worker_name, cbo_company_user_id, cbo_supplier_id, cbo_supplier_staff_id, created_at),
         day_yakan:day_yakan_options(id, label),
         work_content:work_content_options(id, label),
         health_type:health_type_options(id, label)

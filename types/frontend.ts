@@ -8,6 +8,7 @@ export type WorkerSummary = {
   cbo_company_user_id: string | null
   cbo_supplier_id: string | null
   cbo_supplier_staff_id: string | null
+  created_at: string
 }
 
 export type ReportRow = DailyReport & {
